@@ -31,7 +31,7 @@
 
 &state_default {
 	gpio {
-		groups = "i2c", "i2s";
+		groups = "spi1", "i2s";
 		function = "gpio";
 	};
 };
