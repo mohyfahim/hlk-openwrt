@@ -7,7 +7,7 @@
 
 / {
 	compatible = "hilink,hlk-7628n", "mediatek,mt7628an-soc";
-	model = "HILINK HLK-7628N MOHY";
+	model = "HILINK HLK-7628N Fahim";
 
 	keys {
 		compatible = "gpio-keys";
@@ -31,7 +31,7 @@
 
 &state_default {
 	gpio {
-		groups = "spi1", "i2s";
+		groups =  "i2s";
 		function = "gpio";
 	};
 };
@@ -100,4 +100,8 @@
 	macaddr_factory_28: macaddr@28 {
 		reg = <0x28 0x6>;
 	};
+};
+
+&i2c {
+	status = "okay";
 };
