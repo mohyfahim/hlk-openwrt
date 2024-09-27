@@ -1,7 +1,4 @@
-[submodule "dtn-src/openNDS-local"]
-	path = dtn-src/openNDS-local
-	url = git@github.com:mohyfahim/openNDS-local.git
-	branch = v10.2.00
 [submodule "packages/dtn-src/openNDS-local"]
 	path = packages/dtn-src/openNDS-local
 	url = git@github.com:mohyfahim/openNDS-local.git
+	branch = v10.2.00
