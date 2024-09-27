@@ -5,14 +5,12 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=opennds
-PKG_VERSION:=10.1.3
+PKG_NAME:=opennds-local
+PKG_VERSION:=10.2.0
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/opennds/opennds/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=8016a8d20643a2dfc7e8d9e8012e300db6996aeede5ea8a895cb1b95e52f202a
-PKG_BUILD_DIR:=$(BUILD_DIR)/openNDS-$(PKG_VERSION)
+USE_SOURCE_DIR:=$(TOPDIR)/dtn-src/openNDS-local
+PKG_BUILD_DIR:=$(BUILD_DIR)/openNDS-local-$(PKG_VERSION)
 
 PKG_MAINTAINER:=Rob White <rob@blue-wave.net>
 PKG_LICENSE:=GPL-2.0-or-later
@@ -23,17 +21,17 @@ PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/opennds
+define Package/opennds-local
   SUBMENU:=Captive Portals
   SECTION:=net
   CATEGORY:=Network
   DEPENDS:=+libmicrohttpd-no-ssl
-  TITLE:=open Network Demarcation Service
+  TITLE:=open Network Demarcation Service - Local Version
   URL:=https://github.com/opennds/opennds
   CONFLICTS:=nodogsplash
 endef
 
-define Package/opennds/description
+define Package/opennds-local/description
   openNDS (open Network Demarcation Service) is a high performance, small footprint, Captive Portal.
   It provides a border control gateway between a public local area network and the Internet.
   It supports all scenarios ranging from small stand alone venues through to large mesh networks with multiple portal entry points.
@@ -41,7 +39,7 @@ define Package/opennds/description
   This version uses nftables.
 endef
 
-define Package/opennds/install
+define Package/opennds-local/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/opennds $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ndsctl $(1)/usr/bin/
@@ -72,17 +70,18 @@ define Package/opennds/install
 	$(CP) $(PKG_BUILD_DIR)/forward_authentication_service/libs/post-request.php $(1)/usr/lib/opennds/
 	$(CP) $(PKG_BUILD_DIR)/forward_authentication_service/fas-aes/fas-aes.php $(1)/etc/opennds/
 	$(CP) $(PKG_BUILD_DIR)/forward_authentication_service/fas-hid/fas-hid.php $(1)/etc/opennds/
+	$(CP) $(PKG_BUILD_DIR)/forward_authentication_service/fas-hid/fas-hid-https.php $(1)/etc/opennds/
 	$(CP) $(PKG_BUILD_DIR)/forward_authentication_service/fas-aes/fas-aes-https.php $(1)/etc/opennds/
 endef
 
-define Package/opennds/postrm
+define Package/opennds-local/postrm
 #!/bin/sh
 uci delete firewall.opennds
 uci commit firewall
 endef
 
-define Package/opennds/conffiles
+define Package/opennds-local/conffiles
 /etc/config/opennds
 endef
 
-$(eval $(call BuildPackage,opennds))
+$(eval $(call BuildPackage,opennds-local))
