@@ -1,7 +1,7 @@
 
 config opennds
 	option enabled '1'
-	option fasport '2080'
+	option fasport '443'
 	option fasremotefqdn 'podbox.plus'
 	option fas_secure_enabled '4'
 	list users_to_router 'allow tcp port 53'
@@ -12,5 +12,5 @@ config opennds
 	list users_to_router 'allow tcp port 5051'
 	option faskey 'f54ba160595dcb78110d8c615ea158cee304639f2b93737bbc9c607074789edc'
 	option debuglevel '2'
-
+	list trustedmac '9A:53:53:1C:0A:C0'
 
