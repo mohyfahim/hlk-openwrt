@@ -19,7 +19,7 @@ on:
 env:
   REPO_URL: https://git.openwrt.org/openwrt/openwrt.git
   REPO_BRANCH: openwrt-22.03
-  FEEDS_CONF: feeds.conf
+  FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DTS_FILE: dts/mt7628an_hilink_hlk-7628n.dts
   DIY_P1_SH: diy-part1.sh
@@ -62,9 +62,9 @@ jobs:
 
     - name: Load custom feeds
       run: |
-        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf
-        chmod +x $DIY_P1_SH
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
         cp -r packages/* openwrt/.
+        chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
