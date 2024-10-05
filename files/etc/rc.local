@@ -1,30 +1,4 @@
-
-GP="/sys/class/gpio"
-
-HUB_RESET=480
-SIM_SELECT=481
-MODEM_RESET=483
-
-echo $HUB_RESET > "$GP/export"
-echo $SIM_SELECT > "$GP/export"
-echo $MODEM_RESET > "$GP/export"
-
-echo "out" > "$GP/gpio$HUB_RESET/direction"
-echo "out" > "$GP/gpio$SIM_SELECT/direction"
-echo "out" > "$GP/gpio$MODEM_RESET/direction"
-
-echo "0" > "$GP/gpio$MODEM_RESET/value"
-
-echo "0" > "$GP/gpio$HUB_RESET/value"
-sleep 1
-echo "1" > "$GP/gpio$HUB_RESET/value"
-
-sleep 10
-
-echo -e "AT+CVAUXV=3050\r\n" > /dev/ttyUSB3
-echo -e "AT+CVAUXS=1\r\n" > /dev/ttyUSB3
-
-echo -e "AT+CGPS=1,1\r\n" > /dev/ttyUSB3
-echo -e "AT+CGPSAUTO=1\r\n" > /dev/ttyUSB3
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
 
 exit 0

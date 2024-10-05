@@ -13,7 +13,6 @@ config dnsmasq
 	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
 	option localservice '1'
 	option ednspacket_max '1232'
-	list address '/status.client/192.168.2.1'
 
 config dhcp 'lan'
 	option interface 'lan'
@@ -25,7 +24,6 @@ config dhcp 'lan'
 	option ra 'server'
 	list ra_flags 'managed-config'
 	list ra_flags 'other-config'
-	list dhcp_option_force '114,http://status.client'
 
 config dhcp 'wan'
 	option interface 'wan'
@@ -37,26 +35,11 @@ config odhcpd 'odhcpd'
 	option leasetrigger '/usr/sbin/odhcpd-update'
 	option loglevel '4'
 
-config host
-	option mac '9A:53:53:1C:0A:C0'
-	option ip '192.168.2.127'
-
-config domain
-	option name 'api.podbox.plus'
-	option ip '192.168.2.127'
-
 config domain
 	option name 'podbox.plus'
 	option ip '192.168.2.127'
 
 config domain
-	option name 'assets.podbox.plus'
+	option name 'status.client'
 	option ip '192.168.2.127'
 
-config domain
-	option name 'connectivitycheck.gstatic.com'
-	option ip '142.250.187.99'
-
-config domain
-	option name 'captive.apple.com'
-	option ip '17.253.18.200'

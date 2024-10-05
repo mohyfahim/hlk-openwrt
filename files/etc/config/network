@@ -6,7 +6,7 @@ config interface 'loopback'
 	option netmask '255.0.0.0'
 
 config globals 'globals'
-	option ula_prefix 'fdcf:7e8a:b703::/48'
+	option ula_prefix 'fda3:3321:f241::/48'
 
 config device
 	option name 'br-lan'
@@ -18,11 +18,11 @@ config interface 'lan'
 	option proto 'static'
 	option netmask '255.255.255.0'
 	option ip6assign '60'
-	option ipaddr '192.168.2.1'
+	option ipaddr '192.168.3.1'
 
 config device
 	option name 'eth0.2'
-	option macaddr '40:d6:3c:d4:ea:dd'
+	option macaddr '40:d6:3c:d4:eb:0b'
 
 config interface 'wan'
 	option device 'eth0.2'
@@ -46,11 +46,4 @@ config switch_vlan
 	option device 'switch0'
 	option vlan '2'
 	option ports '0 6t'
-
-config interface 'LTE'
-	option proto 'qmi'
-	option device '/dev/cdc-wdm0'
-	option apn 'mtnirancell'
-	option auth 'none'
-	option pdptype 'ipv4'
 
