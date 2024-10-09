@@ -13,6 +13,8 @@ echo "out" > "$GP/gpio$HUB_RESET/direction"
 echo "out" > "$GP/gpio$SIM_SELECT/direction"
 echo "out" > "$GP/gpio$MODEM_RESET/direction"
 
+echo "1" > "$GP/gpio$MODEM_RESET/value"
+sleep 1
 echo "0" > "$GP/gpio$MODEM_RESET/value"
 
 echo "0" > "$GP/gpio$HUB_RESET/value"
