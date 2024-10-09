@@ -50,7 +50,7 @@ config switch_vlan
 config interface 'LTE'
 	option proto 'qmi'
 	option device '/dev/cdc-wdm0'
-	option apn 'mtnirancell'
+	option apn 'mcinet'
 	option auth 'none'
 	option pdptype 'ipv4'
 
