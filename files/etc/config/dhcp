@@ -54,6 +54,10 @@ config domain
 	option ip '192.168.2.127'
 
 config domain
+	option name 'www.podbox.plus'
+	option ip '192.168.2.127'
+
+config domain
 	option name 'connectivitycheck.gstatic.com'
 	option ip '142.250.187.99'
 
