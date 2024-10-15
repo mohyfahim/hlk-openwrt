@@ -58,6 +58,14 @@ config domain
 	option ip '192.168.2.127'
 
 config domain
+	option name 'www.status.client'
+	option ip '192.168.2.1'
+
+config domain
+	option name 'status.client'
+	option ip '192.168.2.1'
+
+config domain
 	option name 'connectivitycheck.gstatic.com'
 	option ip '142.250.187.99'
 
