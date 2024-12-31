@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=opennds-local
-PKG_VERSION:=10.2.0
+PKG_VERSION:=10.3.0
 PKG_RELEASE:=1
 
 USE_SOURCE_DIR:=$(TOPDIR)/dtn-src/openNDS-local
