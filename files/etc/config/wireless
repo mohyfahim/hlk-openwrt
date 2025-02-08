@@ -13,13 +13,4 @@ config wifi-iface 'default_radio0'
 	option network 'lan'
 	option mode 'ap'
 	option encryption 'none'
-	option ssid 'Podbox1'
-
-config wifi-iface 'wifinet1'
-	option device 'radio0'
-	option mode 'ap'
-	option ssid 'Podbox2'
-	option encryption 'none'
-	option network 'lan'
-
-
+	option ssid 'podboxrailway'
