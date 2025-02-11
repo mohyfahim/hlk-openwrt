@@ -1,9 +1,9 @@
 
 GP="/sys/class/gpio"
 
-HUB_RESET=480
-SIM_SELECT=481
-MODEM_RESET=483
+HUB_RESET=512
+SIM_SELECT=513
+MODEM_RESET=515
 
 echo $HUB_RESET > "$GP/export"
 echo $SIM_SELECT > "$GP/export"
