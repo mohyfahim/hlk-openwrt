@@ -13,4 +13,4 @@ config opennds
 	option faskey 'f54ba160595dcb78110d8c615ea158cee304639f2b93737bbc9c607074789edc'
 	option debuglevel '2'
 	list trustedmac '9A:53:53:1C:0A:C0'
-
+	option use_outdated_mhd '1' 
