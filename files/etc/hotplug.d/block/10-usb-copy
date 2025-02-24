@@ -1,0 +1,13 @@
+logger -t storage "script is called action: $ACTION, devname: $DEVNAME, type: $DEVTYPE"
+
+STORAGE=/mnt/storage
+
+if [ "$ACTION" = "add" ] && [ "$DEVTYPE" = "partition" ]; then
+    unmount $STORAGE
+    mkdir -p $STORAGE
+    mount /dev/$DEVNAME /mnt/storage
+    chmod +x /mnt/storage/update.sh
+    /mnt/storage/update.sh
+else
+    unmount $STORAGE
+fi
