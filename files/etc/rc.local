@@ -5,17 +5,6 @@ HUB_RESET=512
 SIM_SELECT=513
 MODEM_RESET=515
 
-## wait for opennds 
-ndsctl status
-opennds_status=$?
-
-while [ "$opennds_status" -ne "0" ]; do
-	logger -t fahim -p 7 "wait to opennds"
-	ndsctl status
-	opennds_status=$?
-	sleep 3
-done
-
 
 echo $HUB_RESET > "$GP/export"
 echo $SIM_SELECT > "$GP/export"
