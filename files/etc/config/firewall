@@ -120,7 +120,20 @@ config rule
 	option proto 'udp'
 	option target 'ACCEPT'
 
-config include 'opennds'
-	option type 'script'
-	option path '/usr/lib/opennds/restart.sh'
+config rule
+	option name 'Accept-Intenet'
+	list proto 'all'
+	option src 'lan'
+	list src_mac '62:0E:78:A7:59:1C'
+	option dest 'wan'
+	option target 'ACCEPT'
+
+config rule
+	option src 'lan'
+	list src_ip '192.168.2.0/24'
+	option dest 'wan'
+	option target 'REJECT'
+	option name 'Reject-Internet'
+	list proto 'all'
+
 
