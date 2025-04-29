@@ -72,3 +72,19 @@ config domain
 config domain
 	option name 'captive.apple.com'
 	option ip '17.253.18.200'
+
+config domain
+	option name 'www.apple.com'
+	option ip '184.86.117.54'
+
+config domain
+	option name 'apple.com'
+	option ip '184.86.117.54'
+
+config domain
+	option name 'google.com'
+	option ip '216.239.38.120'
+
+config domain
+	option name 'www.google.com'
+	option ip '216.239.38.120'

@@ -129,6 +129,17 @@ config rule
 	option target 'ACCEPT'
 
 config rule
+	option name 'Accept-Captive'
+	option src 'lan'
+	option dest 'wan'
+	option target 'ACCEPT'
+	list proto 'all'
+	list dest_ip '216.239.38.120'
+	list dest_ip '142.250.187.99'
+	list dest_ip '17.253.18.200'
+	list dest_ip '184.86.117.54'
+
+config rule
 	option src 'lan'
 	list src_ip '192.168.2.0/24'
 	option dest 'wan'
