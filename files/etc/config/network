@@ -53,4 +53,5 @@ config interface 'LTE'
 	option apn 'mcinet'
 	option auth 'none'
 	option pdptype 'ipv4'
+	option auto '0'
 
