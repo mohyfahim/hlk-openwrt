@@ -1,90 +1,80 @@
-
 config dnsmasq
-	option domainneeded '1'
-	option localise_queries '1'
-	option rebind_protection '1'
-	option rebind_localhost '1'
-	option local '/lan/'
-	option domain 'lan'
-	option expandhosts '1'
-	option authoritative '1'
-	option readethers '1'
-	option leasefile '/tmp/dhcp.leases'
-	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
-	option localservice '1'
-	option ednspacket_max '1232'
-	list address '/status.client/192.168.2.1'
+        option domainneeded '1'
+        option localise_queries '1'
+        option rebind_protection '0'
+        option local '/lan/'
+        option domain 'lan'
+        option expandhosts '1'
+        option authoritative '1'
+        option readethers '1'
+        option leasefile '/tmp/dhcp.leases'
+        option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+        option localservice '1'
+        option ednspacket_max '1232'
+        option dhcpscript '/etc/rustive/dhcp_script.sh'
+        list address '/podbox.plus/192.168.2.127'
 
 config dhcp 'lan'
-	option interface 'lan'
-	option start '100'
-	option limit '150'
-	option leasetime '12h'
-	option dhcpv4 'server'
-	option dhcpv6 'server'
-	option ra 'server'
-	list ra_flags 'managed-config'
-	list ra_flags 'other-config'
-	list dhcp_option_force '114,http://status.client'
+        option interface 'lan'
+        option start '10'
+        option limit '99'
+        option leasetime '12h'
+        option dhcpv4 'server'
+        option dhcpv6 'server'
+        option ra 'server'
+        list ra_flags 'managed-config'
+        list ra_flags 'other-config'
+        list dhcp_option_force 'tag:!android_11,114,https://captive.podbox.plus/captive'
+        list dhcp_option_force 'tag:!android_11,103,https://captive.podbox.plus/captive'
+        list dhcp_option_force 'tag:!android_11,37,https://captive.podbox.plus/captive'
+        option force '1'
 
 config dhcp 'wan'
-	option interface 'wan'
-	option ignore '1'
+        option interface 'wan'
+        option ignore '1'
 
 config odhcpd 'odhcpd'
-	option maindhcp '0'
-	option leasefile '/tmp/hosts/odhcpd'
-	option leasetrigger '/usr/sbin/odhcpd-update'
-	option loglevel '4'
+        option maindhcp '0'
+        option leasefile '/tmp/hosts/odhcpd'
+        option leasetrigger '/usr/sbin/odhcpd-update'
+        option loglevel '4'
 
 config host
-	option mac '9A:53:53:1C:0A:C0'
-	option ip '192.168.2.127'
+        option mac '62:0E:78:A7:59:1C'
+        option ip '192.168.2.127'
+
+config vendorclass
+        option networkid 'android_11'
+        option vendorclass 'android-dhcp-11'
 
 config domain
-	option name 'api.podbox.plus'
-	option ip '192.168.2.127'
+        option name 'api.podbox.plus'
+        option ip '192.168.2.127'
 
 config domain
-	option name 'podbox.plus'
-	option ip '192.168.2.127'
+        option name 'podbox.plus'
+        option ip '192.168.2.127'
 
 config domain
-	option name 'assets.podbox.plus'
-	option ip '192.168.2.127'
+        option name 'assets.podbox.plus'
+        option ip '192.168.2.127'
 
 config domain
-	option name 'www.podbox.plus'
-	option ip '192.168.2.127'
+        option name 'captive.podbox.plus'
+        option ip '192.168.2.127'
 
 config domain
-	option name 'www.status.client'
-	option ip '192.168.2.1'
+        option name 'www.podbox.plus'
+        option ip '192.168.2.127'
 
-config domain
-	option name 'status.client'
-	option ip '192.168.2.1'
-
-config domain
-	option name 'connectivitycheck.gstatic.com'
-	option ip '142.250.187.99'
-
-config domain
-	option name 'captive.apple.com'
-	option ip '17.253.18.200'
-
-config domain
-	option name 'www.apple.com'
-	option ip '184.86.117.54'
-
-config domain
-	option name 'apple.com'
-	option ip '184.86.117.54'
-
-config domain
-	option name 'google.com'
-	option ip '216.239.38.120'
-
-config domain
-	option name 'www.google.com'
-	option ip '216.239.38.120'
+config ipset
+        option table_family 'inet'
+        option table 'fw4'
+        list name 'authorized_urls'
+        list domain 'connectivitycheck.gstatic.com'
+        list domain 'google.com'
+        list domain 'captive.g.aaplimg.com'
+        list domain 'play.googleapis.com'
+        list domain 'captive.apple.com'
+        list domain 'apple.com'
+        list domain 'connect.rom.miui.com'

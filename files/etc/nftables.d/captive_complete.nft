@@ -1,0 +1,34 @@
+chain user_pre_nat {
+    # Hook into Prerouting (Traffic entering the router)
+    # Priority -100 ensures it runs before standard connection tracking
+    type nat hook prerouting priority dstnat - 5; policy accept;
+
+    # Logic:
+    # If traffic is TCP port 80 or 443...
+    # AND source is NOT in authorized_clients...
+    # THEN redirect to local port 8090.
+    iifname "br-lan" tcp dport { 80, 443 } ip saddr != @authorized_clients ip saddr != 192.168.2.127 counter redirect to :8090
+}
+
+# ---------------------------------------------------------------
+# 2. FILTER (Whitelisting)
+# We use the existing 'user_pre_forward' chain from the template.
+# ---------------------------------------------------------------
+chain user_pre_forward {
+    # Hook into Forward (Traffic passing through the router)
+    # Priority -1 means this runs BEFORE OpenWrt's standard "Allow LAN to WAN" rules.
+    type filter hook forward priority -1; policy accept;
+
+    # Logic for Authorized Clients:
+    # 1. If Source is Authorized AND Dest is Authorized URL -> ALLOW (Accept)
+    ip saddr @authorized_clients ip daddr @authorized_urls counter accept
+
+    # 2. If Source is Authorized BUT Dest is NOT Authorized -> BLOCK (Drop)
+    # (Because they are in the list, but trying to go somewhere else)
+    ip saddr @authorized_clients counter reject
+    
+    # 3. If Source is NOT Authorized -> 
+    # Let it pass to the next chain. Why? Because the NAT rule above 
+    # already hijacked their HTTP/HTTPS. If we drop them here, the 
+    # Captive Portal page won't load.
+}

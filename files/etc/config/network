@@ -48,10 +48,12 @@ config switch_vlan
 	option ports '0 6t'
 
 config interface 'LTE'
-	option proto 'qmi'
-	option device '/dev/cdc-wdm0'
-	option apn 'mcinet'
-	option auth 'none'
-	option pdptype 'ipv4'
-	option auto '0'
+    option proto 'modemmanager'
+    option device '/sys/devices/platform/101c0000.ehci/usb1/1-1/1-1.1'
+    option apn 'mcinet'
+    list allowedauth 'none'
+    option iptype 'ipv4v6'
+    option loglevel 'ERR'
 
+config interface 'wwan'
+        option proto 'dhcp'

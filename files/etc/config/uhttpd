@@ -19,14 +19,37 @@ config uhttpd 'main'
 	option tcp_keepalive '1'
 	option ubus_prefix '/ubus'
 
-config uhttpd 'api'
-	list listen_http '0.0.0.0:8080'
-	list listen_http '[::]:8080'
-	option redirect_https '0'
-	option home '/www/dummy'
-	option lua_prefix '/api'
-	option lua_handler '/www/api/handler.lua'
 
+config uhttpd 'api'
+        # IMPORTANT:
+        # Listen only on the internal LAN address.
+        # Do not expose the API on WAN or every interface.
+        list listen_http '192.168.2.1:8080'
+
+        option home '/www/dummy'
+
+        option lua_prefix '/api'
+        option lua_handler '/www/api/handler.lua'
+
+        # DNS rebinding protection
+        option rfc1918_filter '1'
+
+        # API performs small mmcli calls, so limit concurrency.
+        option max_requests '2'
+        option max_connections '10'
+
+        # Don't allow a stuck modem query to consume
+        # uhttpd resources indefinitely.
+        option script_timeout '10'
+        option network_timeout '10'
+
+        option http_keepalive '5'
+        option tcp_keepalive '1'
+
+        option no_dirlists '1'
+        option no_symlinks '1'
+
+		
 config cert 'defaults'
 	option days '730'
 	option key_type 'ec'
