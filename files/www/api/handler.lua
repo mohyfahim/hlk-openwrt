@@ -2,7 +2,7 @@ local io = require "io"
 local json = require "luci.jsonc"
 
 local MMCLI = "/usr/bin/mmcli"
-local MODEM_ID = "0"
+local MODEM_ID = "any"
 
 -- Only these hosts may use this API.
 -- 127.0.0.1 / ::1 are useful for local diagnostics.
@@ -181,6 +181,73 @@ end
 ------------------------------------------------------------
 -- Current modem access technology
 ------------------------------------------------------------
+local function get_modem_status()
+    local output =
+        command_output(
+            MMCLI .. " -K -m " .. MODEM_ID
+        )
+
+    if not output then
+        return {
+            accessTechnology = "unknown",
+            signalQuality = nil,
+            signalRecent = false
+        }
+    end
+
+    local data = parse_keyvalue(output)
+
+    --------------------------------------------------------
+    -- Access technology
+    --------------------------------------------------------
+
+    local access =
+        data["modem.generic.access-technologies"]
+
+    if not access then
+        access =
+            data[
+            "modem.generic.access-technologies.value[1]"
+            ]
+    end
+
+    access = trim(access) or "unknown"
+
+
+    --------------------------------------------------------
+    -- Signal quality
+    --------------------------------------------------------
+
+    local signal_value =
+        trim(
+            data["modem.generic.signal-quality.value"]
+        )
+
+    local signal_recent =
+        trim(
+            data["modem.generic.signal-quality.recent"]
+        )
+
+    local signal_quality = tonumber(signal_value)
+
+    --------------------------------------------------------
+    -- Validate percentage
+    --------------------------------------------------------
+
+    if signal_quality then
+        if signal_quality < 0 then
+            signal_quality = 0
+        elseif signal_quality > 100 then
+            signal_quality = 100
+        end
+    end
+
+    return {
+        accessTechnology = access,
+        signalQuality = signal_quality,
+        signalRecent = (signal_recent == "yes")
+    }
+end
 
 local function get_access_technology()
     local output =
@@ -319,7 +386,9 @@ local function get_cell_location()
         return nil
     end
 
-    local access = get_access_technology()
+    local modem_status = get_modem_status()
+
+    local access = modem_status.accessTechnology
     local rat = classify_rat(access)
 
     --------------------------------------------------------
@@ -334,9 +403,12 @@ local function get_cell_location()
     local result = {
         available = true,
 
-        rat = rat,
 
+        rat = rat,
         accessTechnology = access,
+
+        signalQuality = modem_status.signalQuality,
+        signalRecent = modem_status.signalRecent,
 
         mcc = location.mcc or "",
         mnc = location.mnc or "",

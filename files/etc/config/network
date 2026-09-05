@@ -54,6 +54,8 @@ config interface 'LTE'
     list allowedauth 'none'
     option iptype 'ipv4v6'
     option loglevel 'ERR'
+	option force_connection '1'
+	option disable_modem '0'
 
 config interface 'wwan'
         option proto 'dhcp'
