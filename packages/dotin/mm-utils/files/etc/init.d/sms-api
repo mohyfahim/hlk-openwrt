@@ -1,0 +1,41 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+
+START=95
+STOP=10
+PROG=/usr/sbin/sms-api-worker
+
+start_service() {
+	local enabled modem queue_limit terminal_limit terminal_ttl
+	local retry_interval send_timeout
+
+	config_load sms-api
+	config_get_bool enabled main enabled 1
+	[ "$enabled" -eq 1 ] || return 0
+
+	config_get modem main modem any
+	config_get queue_limit main queue_limit 16
+	config_get terminal_limit main terminal_limit 128
+	config_get terminal_ttl main terminal_ttl 86400
+	config_get retry_interval main retry_interval 5
+	config_get send_timeout main send_timeout 120
+
+	procd_open_instance worker
+	procd_set_param command "$PROG" \
+		--modem "$modem" \
+		--queue-limit "$queue_limit" \
+		--terminal-limit "$terminal_limit" \
+		--terminal-ttl "$terminal_ttl" \
+		--retry-interval "$retry_interval" \
+		--send-timeout "$send_timeout"
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger sms-api
+}
+

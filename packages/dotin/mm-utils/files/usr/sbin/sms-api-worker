@@ -1,0 +1,533 @@
+#!/usr/bin/lua
+
+local sms_api = require "sms_api"
+local ubus = require "ubus"
+local uloop = require "uloop"
+
+local test_options = rawget(_G, "SMS_API_TEST_OPTIONS")
+local HELPER = test_options and test_options.helper or "/usr/libexec/sms-api-send"
+local RUNTIME_DIR = test_options and test_options.runtime_dir or "/tmp/sms-api"
+
+local config = {
+    modem = "any",
+    queue_limit = 16,
+    terminal_limit = 128,
+    terminal_ttl = 86400,
+    retry_interval = 5,
+    send_timeout = 120
+}
+
+
+local function positive_integer(value, default, minimum, maximum)
+    value = tonumber(value)
+    if not value then
+        return default
+    end
+
+    value = math.floor(value)
+    if value < minimum then
+        return minimum
+    end
+    if value > maximum then
+        return maximum
+    end
+    return value
+end
+
+
+local function load_arguments(arguments)
+    local offset = 1
+
+    while offset <= #arguments do
+        local option = arguments[offset]
+        local value = arguments[offset + 1]
+
+        if not value then
+            break
+        end
+
+        if option == "--modem" then
+            config.modem = value
+        elseif option == "--queue-limit" then
+            config.queue_limit = positive_integer(value, 16, 1, 1024)
+        elseif option == "--terminal-limit" then
+            config.terminal_limit = positive_integer(value, 128, 1, 4096)
+        elseif option == "--terminal-ttl" then
+            config.terminal_ttl = positive_integer(value, 86400, 60, 2592000)
+        elseif option == "--retry-interval" then
+            config.retry_interval = positive_integer(value, 5, 1, 300)
+        elseif option == "--send-timeout" then
+            config.send_timeout = positive_integer(value, 120, 10, 600)
+        end
+
+        offset = offset + 2
+    end
+
+    if config.modem == "" or config.modem:find("[%c%s]") then
+        config.modem = "any"
+    end
+end
+
+
+load_arguments(arg or {})
+
+-- All transient files are private and deliberately discarded on every
+-- worker start. The API's source of truth is the process-local jobs table.
+if not (test_options and test_options.runtime_ready) then
+    local setup_status = os.execute(
+        "rm -rf /tmp/sms-api && mkdir -m 0700 /tmp/sms-api"
+    )
+    if setup_status ~= 0 then
+        error("unable to initialize SMS runtime directory")
+    end
+end
+
+local jobs = {}
+local queue = {}
+local terminal_order = {}
+local cleanup_queue = {}
+local active_count = 0
+local active_id = nil
+local active_process = nil
+local cleanup_process = nil
+
+local process_timer
+local expiry_timer
+local cleanup_timer
+
+
+local function read_all(path)
+    local handle = io.open(path, "rb")
+    if not handle then
+        return nil
+    end
+
+    local contents = handle:read("*a")
+    handle:close()
+    return contents
+end
+
+
+local function write_all(path, contents)
+    local handle = io.open(path, "wb")
+    if not handle then
+        return false
+    end
+
+    local ok = handle:write(contents)
+    handle:close()
+    return ok and true or false
+end
+
+
+local function remove_file(path)
+    if path then
+        os.remove(path)
+    end
+end
+
+
+local function parse_result(path)
+    local contents = read_all(path)
+    local result = {}
+
+    if not contents then
+        return result
+    end
+
+    for line in contents:gmatch("[^\r\n]+") do
+        local key, value = line:match("^([A-Za-z]+)=(.*)$")
+        if key then
+            result[key] = value
+        end
+    end
+
+    return result
+end
+
+
+local function random_uuid()
+    local handle = io.open("/proc/sys/kernel/random/uuid", "r")
+    if handle then
+        local value = handle:read("*l")
+        handle:close()
+
+        value = sms_api.normalize_uuid(value)
+        if value then
+            return value
+        end
+    end
+
+    handle = io.open("/dev/urandom", "rb")
+    if not handle then
+        return nil
+    end
+
+    local bytes = { string.byte(handle:read(16) or "", 1, 16) }
+    handle:close()
+    if #bytes ~= 16 then
+        return nil
+    end
+
+    bytes[7] = 0x40 + (bytes[7] % 0x10)
+    bytes[9] = 0x80 + (bytes[9] % 0x40)
+
+    return string.format(
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        bytes[1], bytes[2], bytes[3], bytes[4],
+        bytes[5], bytes[6], bytes[7], bytes[8],
+        bytes[9], bytes[10], bytes[11], bytes[12],
+        bytes[13], bytes[14], bytes[15], bytes[16]
+    )
+end
+
+
+local function new_job_id()
+    local attempt
+    for attempt = 1, 8 do
+        local id = random_uuid()
+        if id and not jobs[id] then
+            return id
+        end
+    end
+    return nil
+end
+
+
+local function public_job(job)
+    local result = {
+        id = job.id,
+        status = job.status
+    }
+
+    if job.status == "sent" then
+        result.messageReference = job.message_reference or 0
+    elseif job.status == "failed" or job.status == "unknown" then
+        result.error = job.error
+    end
+
+    return result
+end
+
+
+local function compact_terminal_history()
+    local now = os.time()
+
+    while #terminal_order > 0 do
+        local id = terminal_order[1]
+        local job = jobs[id]
+        local over_limit = #terminal_order > config.terminal_limit
+        local expired = not job
+            or not job.completed_at
+            or now - job.completed_at >= config.terminal_ttl
+
+        if not over_limit and not expired then
+            break
+        end
+
+        table.remove(terminal_order, 1)
+        if job and job.status ~= "queued" and job.status ~= "sending" then
+            jobs[id] = nil
+        end
+    end
+end
+
+
+local function schedule_processing(delay_seconds)
+    if process_timer then
+        process_timer:set((delay_seconds or 0) * 1000)
+    end
+end
+
+
+local function finish_job(job, status, detail)
+    job.status = status
+    job.completed_at = os.time()
+    job.to = nil
+    job.message = nil
+
+    if status == "sent" then
+        job.message_reference = tonumber(detail) or 0
+    else
+        job.error = detail
+    end
+
+    active_count = active_count - 1
+    active_id = nil
+    active_process = nil
+    table.remove(queue, 1)
+    terminal_order[#terminal_order + 1] = job.id
+
+    compact_terminal_history()
+    schedule_processing(0)
+end
+
+
+local function schedule_unknown_cleanup(sms_path)
+    if not sms_path
+        or not sms_path:match("^/org/freedesktop/ModemManager1/SMS/[0-9]+$")
+    then
+        return
+    end
+
+    cleanup_queue[#cleanup_queue + 1] = {
+        path = sms_path,
+        due = os.time() + math.max(config.send_timeout, 300),
+        attempts = 0
+    }
+end
+
+
+local function complete_send(job, paths)
+    local result = parse_result(paths.result)
+    local submitted_path = read_all(paths.marker)
+    local submitted = submitted_path ~= nil
+
+    if submitted_path then
+        submitted_path = submitted_path:match("^%s*(.-)%s*$")
+    end
+
+    remove_file(paths.text)
+    remove_file(paths.result)
+    remove_file(paths.marker)
+
+    if result.state == "retry" and not submitted then
+        job.status = "queued"
+        active_id = nil
+        active_process = nil
+        schedule_processing(config.retry_interval)
+        return
+    end
+
+    if result.state == "sent" then
+        finish_job(job, "sent", result.messageReference)
+        return
+    end
+
+    if result.state == "failed" then
+        finish_job(job, "failed", "modem-rejected")
+        return
+    end
+
+    if result.state == "unknown" then
+        local error_code = result.error
+        if error_code ~= "modem-response-timeout"
+            and error_code ~= "modem-connection-lost"
+        then
+            error_code = "modem-connection-lost"
+        end
+        schedule_unknown_cleanup(result.smsPath or submitted_path)
+        finish_job(job, "unknown", error_code)
+        return
+    end
+
+    if submitted then
+        schedule_unknown_cleanup(submitted_path)
+        finish_job(job, "unknown", "modem-connection-lost")
+    else
+        job.status = "queued"
+        active_id = nil
+        active_process = nil
+        schedule_processing(config.retry_interval)
+    end
+end
+
+
+local function process_next()
+    if active_id or #queue == 0 then
+        return
+    end
+
+    local id = queue[1]
+    local job = jobs[id]
+    if not job then
+        table.remove(queue, 1)
+        schedule_processing(0)
+        return
+    end
+
+    local base = RUNTIME_DIR .. "/" .. id
+    local paths = {
+        text = base .. ".text",
+        result = base .. ".result",
+        marker = base .. ".submitted"
+    }
+
+    remove_file(paths.text)
+    remove_file(paths.result)
+    remove_file(paths.marker)
+
+    if not write_all(paths.text, job.message) then
+        schedule_processing(config.retry_interval)
+        return
+    end
+
+    job.status = "sending"
+    active_id = id
+
+    local started, process = pcall(
+        uloop.process,
+        HELPER,
+        {
+            "--modem", config.modem,
+            "--timeout", tostring(config.send_timeout),
+            "--to", job.to,
+            "--text", paths.text,
+            "--result", paths.result,
+            "--marker", paths.marker
+        },
+        {},
+        function()
+            complete_send(job, paths)
+        end
+    )
+
+    if started then
+        active_process = process
+    end
+
+    if not started or not active_process then
+        job.status = "queued"
+        active_id = nil
+        remove_file(paths.text)
+        schedule_processing(config.retry_interval)
+    end
+end
+
+
+local function run_cleanup()
+    if cleanup_process or active_id or #cleanup_queue == 0 then
+        cleanup_timer:set(60000)
+        return
+    end
+
+    local item = cleanup_queue[1]
+    if item.due > os.time() then
+        cleanup_timer:set(math.min(item.due - os.time(), 60) * 1000)
+        return
+    end
+
+    local result_path = RUNTIME_DIR .. "/cleanup.result"
+    remove_file(result_path)
+
+    local started, process = pcall(
+        uloop.process,
+        HELPER,
+        {
+            "--cleanup",
+            "--modem", config.modem,
+            "--sms-path", item.path,
+            "--result", result_path
+        },
+        {},
+        function()
+            local result = parse_result(result_path)
+            remove_file(result_path)
+            cleanup_process = nil
+
+            if result.state == "done" or item.attempts >= 11 then
+                table.remove(cleanup_queue, 1)
+            else
+                item.attempts = item.attempts + 1
+                item.due = os.time() + 300
+            end
+
+            cleanup_timer:set(60000)
+        end
+    )
+
+    if started then
+        cleanup_process = process
+    end
+
+    if not started or not cleanup_process then
+        item.attempts = item.attempts + 1
+        item.due = os.time() + 300
+        cleanup_timer:set(60000)
+    end
+end
+
+
+uloop.init()
+
+local connection = ubus.connect()
+if not connection then
+    error("unable to connect to ubus")
+end
+
+process_timer = uloop.timer(process_next)
+
+expiry_timer = uloop.timer(
+    function()
+        compact_terminal_history()
+        expiry_timer:set(60000)
+    end
+)
+expiry_timer:set(60000)
+
+cleanup_timer = uloop.timer(run_cleanup)
+cleanup_timer:set(60000)
+
+local objects = {
+    ["sms.api"] = {
+        enqueue = {
+            function(request, message)
+                local validated, validation_error = sms_api.validate_request(message)
+                if not validated then
+                    connection:reply(request, { error = validation_error })
+                    return
+                end
+
+                if active_count >= config.queue_limit then
+                    connection:reply(request, { error = "sms-queue-full" })
+                    return
+                end
+
+                local id = new_job_id()
+                if not id then
+                    connection:reply(request, { error = "sms-queue-full" })
+                    return
+                end
+
+                local job = {
+                    id = id,
+                    status = "queued",
+                    to = validated.to,
+                    message = validated.message,
+                    created_at = os.time()
+                }
+
+                jobs[id] = job
+                queue[#queue + 1] = id
+                active_count = active_count + 1
+
+                connection:reply(request, public_job(job))
+                schedule_processing(0)
+            end,
+            {
+                to = ubus.STRING,
+                message = ubus.STRING
+            }
+        },
+        status = {
+            function(request, message)
+                local id = sms_api.normalize_uuid(message and message.id)
+                local job = id and jobs[id] or nil
+
+                if not job then
+                    connection:reply(request, { error = "sms-job-not-found" })
+                    return
+                end
+
+                connection:reply(request, public_job(job))
+            end,
+            {
+                id = ubus.STRING
+            }
+        }
+    }
+}
+
+connection:add(objects)
+uloop.run()
+connection:close()

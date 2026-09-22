@@ -1,0 +1,216 @@
+#!/bin/sh
+
+set -u
+
+export LC_ALL=C
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+MMCLI=${SMS_API_TEST_MMCLI:-/usr/bin/mmcli}
+
+mode=send
+modem=any
+send_timeout=120
+destination=
+text_file=
+result_file=
+marker_file=
+sms_path=
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--cleanup)
+			mode=cleanup
+			shift
+			;;
+		--modem)
+			[ "$#" -ge 2 ] || exit 64
+			modem=$2
+			shift 2
+			;;
+		--timeout)
+			[ "$#" -ge 2 ] || exit 64
+			send_timeout=$2
+			shift 2
+			;;
+		--to)
+			[ "$#" -ge 2 ] || exit 64
+			destination=$2
+			shift 2
+			;;
+		--text)
+			[ "$#" -ge 2 ] || exit 64
+			text_file=$2
+			shift 2
+			;;
+		--result)
+			[ "$#" -ge 2 ] || exit 64
+			result_file=$2
+			shift 2
+			;;
+		--marker)
+			[ "$#" -ge 2 ] || exit 64
+			marker_file=$2
+			shift 2
+			;;
+		--sms-path)
+			[ "$#" -ge 2 ] || exit 64
+			sms_path=$2
+			shift 2
+			;;
+		*)
+			exit 64
+			;;
+	esac
+done
+
+[ -n "$result_file" ] || exit 64
+
+umask 077
+output_file="${result_file}.mmcli.$$"
+result_tmp="${result_file}.tmp.$$"
+
+cleanup_files() {
+	rm -f "$output_file" "$result_tmp"
+}
+
+trap cleanup_files EXIT HUP INT TERM
+
+write_result() {
+	state=$1
+	error=${2-}
+	reference=${3-}
+	path=${4-}
+
+	{
+		printf 'state=%s\n' "$state"
+		[ -z "$error" ] || printf 'error=%s\n' "$error"
+		[ -z "$reference" ] || printf 'messageReference=%s\n' "$reference"
+		[ -z "$path" ] || printf 'smsPath=%s\n' "$path"
+	} >"$result_tmp" || exit 74
+
+	mv -f "$result_tmp" "$result_file" || exit 74
+}
+
+delete_sms() {
+	path=$1
+	"$MMCLI" --timeout 30 --modem "$modem" \
+		--messaging-delete-sms="$path" >/dev/null 2>&1 || true
+}
+
+extract_value() {
+	key=$1
+	file=$2
+	sed -n \
+		"s/^[[:space:]]*${key}[[:space:]]*:[[:space:]]*//p" \
+		"$file" | sed -n '1p' | sed 's/[[:space:]]*$//'
+}
+
+if [ "$mode" = cleanup ]; then
+	[ -n "$sms_path" ] || exit 64
+
+	if ! "$MMCLI" --timeout 30 --output-keyvalue --sms "$sms_path" \
+		>"$output_file" 2>&1; then
+		if grep -qiE "couldn.t find|not found|unknown object" "$output_file"; then
+			write_result done
+		else
+			write_result retry
+		fi
+		exit 0
+	fi
+
+	sms_state=$(extract_value 'sms.properties.state' "$output_file")
+	if [ "$sms_state" = sending ]; then
+		write_result retry
+		exit 0
+	fi
+
+	delete_sms "$sms_path"
+	write_result done
+	exit 0
+fi
+
+[ -n "$destination" ] || exit 64
+[ -n "$text_file" ] || exit 64
+[ -n "$marker_file" ] || exit 64
+[ -r "$text_file" ] || exit 66
+
+case "$send_timeout" in
+	*[!0-9]*|'') exit 64 ;;
+esac
+
+# A failed readiness check is retryable: no submission has occurred yet.
+if ! "$MMCLI" --timeout 10 --output-keyvalue --modem "$modem" \
+	>"$output_file" 2>&1; then
+	write_result retry
+	exit 0
+fi
+
+modem_state=$(extract_value 'modem.generic.state' "$output_file")
+case "$modem_state" in
+	registered|disconnecting|connecting|connected) ;;
+	*)
+		write_result retry
+		exit 0
+		;;
+esac
+
+if ! "$MMCLI" --timeout 10 --output-keyvalue --modem "$modem" \
+	--messaging-status >"$output_file" 2>&1; then
+	write_result retry
+	exit 0
+fi
+
+if ! "$MMCLI" --timeout 30 --output-keyvalue --modem "$modem" \
+	--messaging-create-sms="number=$destination" \
+	--messaging-create-sms-with-text="$text_file" \
+	>"$output_file" 2>&1; then
+	write_result retry
+	exit 0
+fi
+
+sms_path=$(extract_value 'modem.messaging.created-sms' "$output_file")
+case "$sms_path" in
+	/org/freedesktop/ModemManager1/SMS/[0-9]*) ;;
+	*)
+		write_result retry
+		exit 0
+		;;
+esac
+
+# The marker distinguishes failures before submission from ambiguous failures
+# after submission has begun. It is intentionally written immediately before
+# invoking mmcli --send.
+printf '%s\n' "$sms_path" >"$marker_file" || exit 74
+
+if "$MMCLI" --timeout "$send_timeout" --sms "$sms_path" --send \
+	>"$output_file" 2>&1; then
+	message_reference=0
+	if "$MMCLI" --timeout 30 --output-keyvalue --sms "$sms_path" \
+		>"$output_file" 2>&1; then
+		candidate=$(extract_value 'sms.properties.message-reference' "$output_file")
+		case "$candidate" in
+			''|*[!0-9]*) ;;
+			*) message_reference=$candidate ;;
+		esac
+	fi
+
+	write_result sent '' "$message_reference" "$sms_path"
+	delete_sms "$sms_path"
+	exit 0
+fi
+
+if grep -qiE "timeout|timed out|Timeout was reached|org\.freedesktop\.DBus\.Error\.NoReply" \
+	"$output_file"; then
+	write_result unknown modem-response-timeout '' "$sms_path"
+	exit 0
+fi
+
+if grep -qiE "connection (is )?closed|connection lost|ServiceUnknown|NameHasNoOwner|disconnected|vanished" \
+	"$output_file"; then
+	write_result unknown modem-connection-lost '' "$sms_path"
+	exit 0
+fi
+
+write_result failed modem-rejected '' "$sms_path"
+delete_sms "$sms_path"
+exit 0

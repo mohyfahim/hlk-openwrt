@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Existing firmware images already define this listener. Only add it when
+# mm-utils is installed on a device without the API uhttpd instance.
+if ! uci -q get uhttpd.api >/dev/null; then
+	uci set uhttpd.api=uhttpd || exit 1
+	uci add_list uhttpd.api.listen_http='192.168.2.1:8080' || exit 1
+	uci set uhttpd.api.home='/www/dummy' || exit 1
+	uci set uhttpd.api.lua_prefix='/api' || exit 1
+	uci set uhttpd.api.lua_handler='/www/api/handler.lua' || exit 1
+	uci set uhttpd.api.rfc1918_filter='1' || exit 1
+	uci set uhttpd.api.max_requests='2' || exit 1
+	uci set uhttpd.api.max_connections='10' || exit 1
+	uci set uhttpd.api.script_timeout='10' || exit 1
+	uci set uhttpd.api.network_timeout='10' || exit 1
+	uci set uhttpd.api.http_keepalive='5' || exit 1
+	uci set uhttpd.api.tcp_keepalive='1' || exit 1
+	uci set uhttpd.api.no_dirlists='1' || exit 1
+	uci set uhttpd.api.no_symlinks='1' || exit 1
+	uci commit uhttpd || exit 1
+	/etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+fi
+
+exit 0

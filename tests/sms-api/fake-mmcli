@@ -1,0 +1,33 @@
+#!/bin/sh
+
+printf '%s\n' "$*" >>"$MOCK_MMCLI_LOG"
+
+case "$*" in
+	*--messaging-status*)
+		[ "${MOCK_MODE:-sent}" = unavailable ] && exit 1
+		printf 'modem.messaging.supported-storages.length : 1\n'
+		;;
+	*--messaging-create-sms=*)
+		printf 'modem.messaging.created-sms : /org/freedesktop/ModemManager1/SMS/7\n'
+		;;
+	*--send*)
+		case "${MOCK_MODE:-sent}" in
+			sent) printf 'successfully sent the SMS\n' ;;
+			rejected) printf 'error: modem rejected submission\n' >&2; exit 1 ;;
+			timeout) printf 'error: Timeout was reached\n' >&2; exit 1 ;;
+			lost) printf 'error: connection is closed\n' >&2; exit 1 ;;
+		esac
+		;;
+	*--messaging-delete-sms=*)
+		printf 'deleted\n' >>"$MOCK_MMCLI_LOG"
+		;;
+	*--sms*)
+		printf 'sms.properties.state : %s\n' "${MOCK_SMS_STATE:-sent}"
+		printf 'sms.properties.message-reference : %s\n' "${MOCK_REFERENCE:-23}"
+		;;
+	*--modem*)
+		printf 'modem.generic.state : %s\n' "${MOCK_MODEM_STATE:-connected}"
+		;;
+esac
+
+exit 0

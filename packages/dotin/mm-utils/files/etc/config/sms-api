@@ -1,0 +1,9 @@
+config sms_api 'main'
+	option enabled '1'
+	option modem 'any'
+	option queue_limit '16'
+	option terminal_limit '128'
+	option terminal_ttl '86400'
+	option retry_interval '5'
+	option send_timeout '120'
+
